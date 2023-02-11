@@ -15,8 +15,10 @@ import torch.nn.functional as F
 from gym.wrappers import TimeLimit
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+from torch import einsum
+from einops import reduce
 
-from gym_atom_array.env import ArrayEnv, Config
+from gym_atom_array.env import ArrayEnv, Config, get_action_mask
 
 
 def parse_args():
@@ -120,6 +122,7 @@ def make_env(seed, args):
             n_cols=args.ArraySize,
             targets=small_grid,
             config=conf,
+            seed=seed,
         )
         env = TimeLimit(env, args.TimeLimit)  # new time limit
         env = gym.wrappers.RecordEpisodeStatistics(env)
@@ -138,8 +141,34 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
+class MaskedCategorical(Categorical):
+    def __init__(self, logits: torch.Tensor, mask: torch.Tensor):
+        self.mask = mask
+        if mask is None:
+            super(MaskedCategorical, self).__init__(logits=logits)
+        else:
+            self.mask_value = torch.tensor(
+                torch.finfo(logits.dtype).min, dtype=logits.dtype, device=logits.device
+            )
+            logits = torch.where(self.mask, logits, self.mask_value)
+            super(MaskedCategorical, self).__init__(logits=logits)
+
+    def entropy(self):
+        if self.mask is None:
+            return super().entropy()
+        # Elementwise multiplication
+        p_log_p = einsum("ij,ij->ij", self.logits, self.probs)
+        # Compute the entropy with possible action only
+        p_log_p = torch.where(
+            self.mask,
+            p_log_p,
+            torch.tensor(0, dtype=p_log_p.dtype, device=p_log_p.device),
+        )
+        return -p_log_p.sum(-1)
+
+
 class Agent(nn.Module):
-    def __init__(self, envs):
+    def __init__(self, envs, device):
         super().__init__()
         feature_dims = 64
         self.extractor = nn.Sequential(
@@ -171,12 +200,44 @@ class Agent(nn.Module):
             )
         )
 
+        self.masking_kernel = torch.tensor(
+            [
+                [
+                    [[0, 1000, 0], [10, 0, 1], [0, 100, 0]],
+                    [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+                    [[0, 0, 0], [0, 10000, 0], [0, 0, 0]],
+                ]
+            ],
+            dtype=torch.float32,
+            device=device,
+        )
+
     def get_value(self, x):
         return self.critic(x)
 
     def get_action_and_value(self, x, action=None):
         logits = self.actor(x)
-        probs = Categorical(logits=logits)
+
+        # Get action mask and set logits
+        has_atoms = torch.amax(x, (1, 2, 3))
+
+        padded = F.pad(x, (1,) * 4, value=2)
+        detect = F.conv2d(padded, self.masking_kernel)
+        inter_masks = torch.amax(detect, (1, 2, 3))
+
+        inter_masks = inter_masks + inter_masks * (has_atoms == 2)
+        masks_ = torch.stack(
+            (
+                inter_masks % 10000 < 2000,
+                inter_masks % 1000 < 200,
+                inter_masks % 100 < 20,
+                inter_masks % 10 < 2,
+                has_atoms == 1,
+                has_atoms == 2,
+            )
+        ).to(x.get_device())
+
+        probs = MaskedCategorical(logits=logits, mask=masks_.T)
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(x)
@@ -220,7 +281,7 @@ if __name__ == "__main__":
         envs.single_action_space, gym.spaces.Discrete
     ), "only discrete action space is supported"
 
-    agent = Agent(envs).to(device)
+    agent = Agent(envs, device).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
