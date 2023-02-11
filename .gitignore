@@ -1,4 +1,5 @@
 wandb/
 runs/
+.ipynb_checkpoints
 
 *.pyc
