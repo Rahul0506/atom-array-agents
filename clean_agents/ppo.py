@@ -155,18 +155,18 @@ class Agent(nn.Module):
         self.critic = nn.Sequential(  # Observation -> Valuation
             self.extractor,
             layer_init(nn.Linear(feature_dims, 64)),
-            nn.Tanh(),
+            nn.ReLU(),
             layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
+            nn.ReLU(),
             layer_init(nn.Linear(64, 1), std=1.0),
         )
         self.actor = (
             nn.Sequential(  # Observation + Valid Actions -> Action -> Next Observation
                 self.extractor,
                 layer_init(nn.Linear(feature_dims, 64)),
-                nn.Tanh(),
+                nn.ReLU(),
                 layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
+                nn.ReLU(),
                 layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
             )
         )
