@@ -78,7 +78,7 @@ def parse_args():
     # Environment specific arguments
     parser.add_argument("--TimeLimit", type=int, default=200)
     parser.add_argument("--EarlyTerm", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True)
-    parser.add_argument("--ArraySize", type=int, default=5)
+    parser.add_argument("--TargetSize", type=int, default=5)
     parser.add_argument("--FillFraction", type=float, default=0.5)
 
     parser.add_argument("--DefaultPenalty", type=float, default=-0.1)
@@ -103,24 +103,21 @@ def parse_args():
 
 ## Environment Init Function
 def make_env(seed, args):
-    small_grid = [
-        (1, 1),
-        (1, 2),
-        (1, 3),
-        (2, 1),
-        (2, 2),
-        (2, 3),
-        (3, 1),
-        (3, 2),
-        (3, 3),
-    ]
+    targets = []
+    tar_size = args.TargetSize
+    arr_size = int(np.ceil(tar_size * (2**0.5)))
+    offset = (arr_size - tar_size) // 2
+
+    for r in range(tar_size):
+        for c in range(tar_size):
+            targets.append((r + offset, c + offset))
     conf = Config.from_dict(vars(args))
 
     def thunk():
         env = ArrayEnv(
-            n_rows=args.ArraySize,
-            n_cols=args.ArraySize,
-            targets=small_grid,
+            n_rows=arr_size,
+            n_cols=arr_size,
+            targets=targets,
             config=conf,
             seed=seed,
         )
@@ -245,7 +242,7 @@ class Agent(nn.Module):
 
 if __name__ == "__main__":
     args = parse_args()
-    run_name = f"{args.ArraySize}x{args.ArraySize}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.TargetSize}x{args.TargetSize}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
