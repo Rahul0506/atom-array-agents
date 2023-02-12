@@ -144,6 +144,8 @@ class AgentOld5x5(MaskedAgent):
             self.extractor,
             layer_init(nn.Linear(feature_dims, 64)),
             nn.ReLU(),
+            layer_init(nn.Linear(64, 64)),
+            nn.ReLU(),
             layer_init(nn.Linear(64, 1), std=1.0),
         )
 

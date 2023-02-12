@@ -11,15 +11,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from gym.wrappers import TimeLimit
-from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 from torch import einsum
 
-from gym_atom_array.env import ArrayEnv, Config, get_action_mask
+from gym_atom_array.env import ArrayEnv, Config
 
-from networks import AgentOld5x5 as Agent
+from networks import MaskedAgent as Agent
 
 ################################################################################################
 ## Parameters
