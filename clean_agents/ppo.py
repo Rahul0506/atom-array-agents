@@ -17,7 +17,7 @@ from torch import einsum
 
 from gym_atom_array.env import ArrayEnv, Config
 
-from networks import MaskedAgent as Agent
+from clean_agents.networks import MaskedAgent as Agent
 
 ################################################################################################
 ## Parameters
@@ -45,27 +45,27 @@ def parse_args():
         help="the id of the environment")
     parser.add_argument("--total-timesteps", type=int, default=500000,
         help="total timesteps of the experiments")
-    parser.add_argument("--learning-rate", type=float, default=2.5e-4,
+    parser.add_argument("--learning-rate", type=float, default=3e-4,
         help="the learning rate of the optimizer")
     parser.add_argument("--num-envs", type=int, default=4,
         help="the number of parallel game environments")
-    parser.add_argument("--num-steps", type=int, default=128,
+    parser.add_argument("--iteration-size", type=int, default=2048,
         help="the number of steps to run in each environment per policy rollout")
+    parser.add_argument("--minibatch-size", type=int, default=128,
+        help="the size of mini-batches")
     parser.add_argument("--anneal-lr", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggle learning rate annealing for policy and value networks")
     parser.add_argument("--gamma", type=float, default=0.99,
         help="the discount factor gamma")
     parser.add_argument("--gae-lambda", type=float, default=0.95,
         help="the lambda for the general advantage estimation")
-    parser.add_argument("--num-minibatches", type=int, default=4,
-        help="the number of mini-batches")
-    parser.add_argument("--update-epochs", type=int, default=4,
+    parser.add_argument("--update-epochs", type=int, default=10,
         help="the K epochs to update the policy")
     parser.add_argument("--norm-adv", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggles advantages normalization")
     parser.add_argument("--clip-coef", type=float, default=0.2,
         help="the surrogate clipping coefficient")
-    parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+    parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
     parser.add_argument("--ent-coef", type=float, default=0.01,
         help="coefficient of the entropy")
@@ -95,11 +95,16 @@ def parse_args():
     parser.add_argument("--MTCollLoss", type=float, default=0)
 
     args = parser.parse_args()
-    print(args)
-    args.batch_size = int(args.num_envs * args.num_steps)
-    args.minibatch_size = int(args.batch_size // args.num_minibatches)
+
+    args.batch_size = args.iteration_size  # int(args.num_envs * args.num_steps)
+    args.num_steps = args.batch_size // args.num_envs
+    # args.minibatch_size = int(args.batch_size // args.num_minibatches)
+    args.num_minibatches = args.batch_size // args.minibatch_size
+
     args.ArraySize = int(np.ceil(args.TargetSize * (2**0.5))) 
     # fmt: on
+
+    print(args)
     return args
 
 

@@ -4,9 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from gym_atom_array.env import ArrayEnv, Config
+from gym_atom_array.env import ArrayEnv
+from clean_agents.ppo import make_env
+from clean_agents.networks import MaskedAgent as Agent
 
+from random import randint
 from sys import argv
+from argparse import Namespace
 
 print(argv)
 assert len(argv) == 2
@@ -15,12 +19,10 @@ model_version = "final"
 
 model_path = f"wandb/{wandb_name}/files/agent-{model_version}.pt"
 
-from argparse import Namespace
-from clean_agents.ppo import Agent, make_env
-
 args = Namespace(
     Render=False,
-    ArraySize=5,
+    ArraySize=6,
+    TargetSize=4,
     DefaultPenalty=-0.1,
     TargetPickUp=-5,
     TargetRelease=10,
@@ -28,11 +30,13 @@ args = Namespace(
 )
 envs = gym.vector.SyncVectorEnv(
     [
-        make_env(1, args),
+        make_env(randint(0, 100), args),
     ]
 )
 
-agent = Agent(envs)
+
+device = torch.device("cpu")
+agent = Agent(envs, device)
 state_dict = torch.load(model_path)
 agent.load_state_dict(state_dict)
 agent.eval()
@@ -81,7 +85,7 @@ frame_title = ax.set_title("Frame: 0")
 
 obs_to_plots(obs, atoms, mt)
 
-next_obs = torch.Tensor(obs)
+next_obs = torch.Tensor(obs).to(device)
 done = False
 
 
@@ -91,13 +95,15 @@ def animate(frame_num):
     frame_title.set_text(f"Frame: {frame_num}")
     with torch.no_grad():
         action, logprob, _, _ = agent.get_action_and_value(next_obs)
+        action = action.cpu().numpy()
+        print(action)
+        next_obs, reward, done, info = envs.step(action)
 
-    next_obs, reward, done, info = envs.step(action.cpu().numpy())
     if done:
         return ()
 
     atoms, mt = obs_to_plots(next_obs, atoms, mt)
-    next_obs = torch.Tensor(next_obs)
+    next_obs = torch.Tensor(next_obs).to(device)
     return (atoms, mt, frame_title)
 
 

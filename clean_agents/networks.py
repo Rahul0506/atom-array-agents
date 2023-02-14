@@ -46,17 +46,18 @@ class MaskedAgent(nn.Module):
         # Specify params
         feature_dims = 64
         kernel1_size, kernel2_size = 3, 3
+        conv2_channels = 32
 
         # Calculate values
         input_width = envs.single_observation_space.shape[1]
         conv1_out = input_width + 2 - kernel1_size + 1
         conv2_out = conv1_out - kernel2_size + 1
-        flattened_dims = (conv2_out**2) * 16
+        flattened_dims = (conv2_out**2) * conv2_channels
 
         self.extractor = nn.Sequential(
-            nn.Conv2d(3, 16, kernel1_size, padding=1),
+            nn.Conv2d(3, 32, kernel1_size, padding=1),
             nn.ReLU(),
-            nn.Conv2d(16, 16, kernel2_size),
+            nn.Conv2d(32, conv2_channels, kernel2_size),
             nn.ReLU(),
             nn.Flatten(),
             nn.Linear(flattened_dims, feature_dims),
@@ -66,18 +67,18 @@ class MaskedAgent(nn.Module):
         self.critic = nn.Sequential(  # Observation -> Valuation
             self.extractor,
             layer_init(nn.Linear(feature_dims, 64)),
-            nn.ReLU(),
+            nn.Tanh(),
             layer_init(nn.Linear(64, 32)),
-            nn.ReLU(),
+            nn.Tanh(),
             layer_init(nn.Linear(32, 1), std=1.0),
         )
         self.actor = (
             nn.Sequential(  # Observation + Valid Actions -> Action -> Next Observation
                 self.extractor,
                 layer_init(nn.Linear(feature_dims, 32)),
-                nn.ReLU(),
+                nn.Tanh(),
                 layer_init(nn.Linear(32, 16)),
-                nn.ReLU(),
+                nn.Tanh(),
                 layer_init(nn.Linear(16, envs.single_action_space.n), std=0.01),
             )
         )
@@ -108,7 +109,7 @@ class MaskedAgent(nn.Module):
         inter_masks = torch.amax(detect, (1, 2, 3))
 
         inter_masks = inter_masks + inter_masks * (has_atoms == 2)
-        masks_ = torch.stack(
+        masks_ = torch.column_stack(
             (
                 inter_masks % 10000 < 2000,
                 inter_masks % 1000 < 200,
@@ -117,9 +118,9 @@ class MaskedAgent(nn.Module):
                 has_atoms == 1,
                 has_atoms == 2,
             )
-        ).to(x.get_device())
+        ).to(x.device)
 
-        probs = MaskedCategorical(logits=logits, mask=masks_.T)
+        probs = MaskedCategorical(logits=logits, mask=masks_)
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(x)
