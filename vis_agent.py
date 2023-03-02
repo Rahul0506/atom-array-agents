@@ -13,16 +13,16 @@ from sys import argv
 from argparse import Namespace
 
 print(argv)
-assert len(argv) == 2
-wandb_name = argv[-1]
-model_version = "final"
+assert len(argv) == 3
+wandb_name = argv[1]
+model_version = argv[2]
 
 model_path = f"wandb/{wandb_name}/files/agent-{model_version}.pt"
 
 args = Namespace(
     Render=False,
-    ArraySize=6,
-    TargetSize=4,
+    ArraySize=5,
+    TargetSize=3,
     DefaultPenalty=-0.1,
     TargetPickUp=-5,
     TargetRelease=10,
@@ -115,6 +115,6 @@ def done_gen():
         yield i
 
 
-anim = FuncAnimation(fig, animate, frames=done_gen, interval=500, blit=True)
+anim = FuncAnimation(fig, animate, frames=done_gen, interval=100, blit=True)
 
 plt.show()
