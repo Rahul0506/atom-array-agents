@@ -49,7 +49,7 @@ def parse_args():
         help="the learning rate of the optimizer")
     parser.add_argument("--num-envs", type=int, default=4,
         help="the number of parallel game environments")
-    parser.add_argument("--iteration-size", type=int, default=2048,
+    parser.add_argument("--num-steps", type=int, default=128,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--minibatch-size", type=int, default=128,
         help="the size of mini-batches")
@@ -96,8 +96,7 @@ def parse_args():
 
     args = parser.parse_args()
 
-    args.batch_size = args.iteration_size  # int(args.num_envs * args.num_steps)
-    args.num_steps = args.batch_size // args.num_envs
+    args.batch_size = int(args.num_envs * args.num_steps)
     # args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_minibatches = args.batch_size // args.minibatch_size
 
