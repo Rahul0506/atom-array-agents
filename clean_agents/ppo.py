@@ -17,7 +17,7 @@ from torch import einsum
 
 from gym_atom_array.env import ArrayEnv, Config
 
-from clean_agents.networks import MaskedAgent as Agent
+from clean_agents.networks import SeparateNets as Agent
 
 ################################################################################################
 ## Parameters

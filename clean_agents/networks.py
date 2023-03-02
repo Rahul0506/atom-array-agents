@@ -68,27 +68,27 @@ class MaskedAgent(nn.Module):
             self.extractor,
             layer_init(nn.Linear(feature_dims, 64)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 32)),
+            layer_init(nn.Linear(64, 64)),
             nn.Tanh(),
-            layer_init(nn.Linear(32, 1), std=1.0),
+            layer_init(nn.Linear(64, 1), std=1.0),
         )
         self.actor = (
             nn.Sequential(  # Observation + Valid Actions -> Action -> Next Observation
                 self.extractor,
-                layer_init(nn.Linear(feature_dims, 32)),
+                layer_init(nn.Linear(feature_dims, 64)),
                 nn.Tanh(),
-                layer_init(nn.Linear(32, 16)),
+                layer_init(nn.Linear(64, 64)),
                 nn.Tanh(),
-                layer_init(nn.Linear(16, envs.single_action_space.n), std=0.01),
+                layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
             )
         )
 
         self.masking_kernel = torch.tensor(
             [
                 [
-                    [[0, 1000, 0], [10, 0, 1], [0, 100, 0]],
+                    [[0, 1000, 0], [10, 10000, 1], [0, 100, 0]],
                     [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
-                    [[0, 0, 0], [0, 10000, 0], [0, 0, 0]],
+                    [[0, 0, 0], [0, 100000, 0], [0, 0, 0]],
                 ]
             ],
             dtype=torch.float32,
@@ -115,7 +115,7 @@ class MaskedAgent(nn.Module):
                 inter_masks % 1000 < 200,
                 inter_masks % 100 < 20,
                 inter_masks % 10 < 2,
-                has_atoms == 1,
+                torch.logical_and(has_atoms == 1, inter_masks % 100000 >= 10000),
                 has_atoms == 2,
             )
         ).to(x.device)
@@ -124,6 +124,65 @@ class MaskedAgent(nn.Module):
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(x)
+
+
+class SeparateNets(MaskedAgent):
+    def __init__(self, envs, device):
+        super().__init__(envs, device)
+
+        # Specify params
+        feature_dims = 64
+        kernel1_size, kernel2_size = 3, 3
+        conv2_channels = 32
+
+        # Calculate values
+        input_width = envs.single_observation_space.shape[1]
+        conv1_out = input_width + 2 - kernel1_size + 1
+        conv2_out = conv1_out - kernel2_size + 1
+        flattened_dims = (conv2_out**2) * conv2_channels
+
+        self.critic = nn.Sequential(  # Observation -> Valuation
+            nn.Conv2d(3, 32, kernel1_size, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, conv2_channels, kernel2_size),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(flattened_dims, feature_dims),
+            nn.ReLU(),
+            layer_init(nn.Linear(feature_dims, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
+        )
+        self.actor = (
+            nn.Sequential(  # Observation + Valid Actions -> Action -> Next Observation
+                nn.Conv2d(3, 32, kernel1_size, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(32, conv2_channels, kernel2_size),
+                nn.ReLU(),
+                nn.Flatten(),
+                nn.Linear(flattened_dims, feature_dims),
+                nn.ReLU(),
+                layer_init(nn.Linear(feature_dims, 64)),
+                nn.Tanh(),
+                layer_init(nn.Linear(64, 64)),
+                nn.Tanh(),
+                layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
+            )
+        )
+
+        self.masking_kernel = torch.tensor(
+            [
+                [
+                    [[0, 1000, 0], [10, 10000, 1], [0, 100, 0]],
+                    [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+                    [[0, 0, 0], [0, 100000, 0], [0, 0, 0]],
+                ]
+            ],
+            dtype=torch.float32,
+            device=device,
+        )
 
 
 class AgentOld5x5(MaskedAgent):
