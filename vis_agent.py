@@ -6,7 +6,7 @@ from matplotlib.animation import FuncAnimation
 
 from gym_atom_array.env import ArrayEnv
 from clean_agents.ppo import make_env
-from clean_agents.networks import MaskedAgent as Agent
+from clean_agents.networks import SeparateNets as Agent
 
 from random import randint
 from sys import argv
@@ -21,8 +21,8 @@ model_path = f"wandb/{wandb_name}/files/agent-{model_version}.pt"
 
 args = Namespace(
     Render=False,
-    ArraySize=5,
-    TargetSize=3,
+    ArraySize=6,
+    TargetSize=4,
     DefaultPenalty=-0.1,
     TargetPickUp=-5,
     TargetRelease=10,
