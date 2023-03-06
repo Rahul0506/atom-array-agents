@@ -77,6 +77,7 @@ def parse_args():
 
     # Environment specific arguments
     parser.add_argument("--TimeLimit", type=int, default=200)
+    parser.add_argument("--OnlyMovingPenalty", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True)
     parser.add_argument("--EarlyTerm", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True)
     parser.add_argument("--TargetSize", type=int, default=5)
     parser.add_argument("--FillFraction", type=float, default=0.5)
