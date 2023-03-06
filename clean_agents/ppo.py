@@ -13,7 +13,6 @@ import torch.nn as nn
 import torch.optim as optim
 from gym.wrappers import TimeLimit
 from torch.utils.tensorboard import SummaryWriter
-from torch import einsum
 
 from gym_atom_array.env import ArrayEnv, Config
 
